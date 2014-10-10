@@ -1,5 +1,4 @@
 import unittest
-from mock import patch
 from estester import ElasticSearchQueryTestCase, ExtendedTestCase,\
     MultipleIndexesQueryTestCase
 
@@ -104,7 +103,7 @@ class SimpleMultipleIndexesQueryTestCase(MultipleIndexesQueryTestCase):
     def test_search_one_index_that_has_item(self):
         query = {
             "query": {
-                "text": {
+                "match": {
                     "name": "Agnessa"
                 }
             }
@@ -117,7 +116,7 @@ class SimpleMultipleIndexesQueryTestCase(MultipleIndexesQueryTestCase):
     def test_search_one_index_that_doesnt_have_item(self):
         query = {
             "query": {
-                "text": {
+                "match": {
                     "name": "Agnessa"
                 }
             }
@@ -144,7 +143,6 @@ class SimpleQueryTestCase(ElasticSearchQueryTestCase):
 
     def test_search_by_nothing_returns_two_results(self):
         response = self.search()
-        expected = {u"name": u"Nina Fox"}
         self.assertEqual(response["hits"]["total"], 2)
         self.assertEqual(response["hits"]["hits"][0]["_id"], u"1")
         self.assertEqual(response["hits"]["hits"][1]["_id"], u"2")
@@ -159,13 +157,13 @@ class SimpleQueryTestCase(ElasticSearchQueryTestCase):
     def test_tokenize_with_default_analyzer(self):
         response = self.tokenize("Nothing to declare", "default")
         items_list = response["tokens"]
-        self.assertEqual(len(items_list), 2)
+        self.assertEqual(len(items_list), 3)
         tokens = [item["token"] for item in items_list]
-        self.assertEqual(sorted(tokens), ["declare", "nothing"])
+        self.assertEqual(sorted(tokens), ["declare", "nothing", "to"])
 
-    def test_tokenize_with_default_analyzer(self):
+    def test_tokenize_with_whitespace_analyzer(self):
         response = self.tokenize("Nothing to declare", "whitespace")
         items_list = response["tokens"]
         self.assertEqual(len(items_list), 3)
         tokens = [item["token"] for item in items_list]
-        self.assertEqual(sorted(tokens), ['"Nothing', 'declare"', "to"])
+        self.assertEqual(sorted(tokens), ["Nothing", "declare", "to"])

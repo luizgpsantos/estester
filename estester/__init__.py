@@ -1,9 +1,6 @@
-import json
-import time
 import unittest
-import urllib
 
-import requests
+from elasticsearch import Elasticsearch
 
 
 __author__ = "Tatiana Al-Chueyr Pereira Martins"
@@ -63,6 +60,7 @@ class ElasticSearchQueryTestCase(ExtendedTestCase):
     index = "sample.test"  # must be lower case
     reset_index = True  # warning: if this is True, index will be cleared up
     host = "http://0.0.0.0:9200/"
+    es = Elasticsearch(host)
     mappings = {}
     proxies = {}
     fixtures = []
@@ -107,15 +105,13 @@ class ElasticSearchQueryTestCase(ExtendedTestCase):
         (i) http://www.elasticsearch.org/guide/en/elasticsearch/guide/current/
         configuring-analyzers.html
         """
-        url = "{0}{1}/"
-        url = url.format(self.host, self.index)
+
         data = {}
         if self.mappings:
             data["mappings"] = self.mappings
         if self.settings:
             data["settings"] = self.settings
-        json_data = json.dumps(data)
-        response = requests.put(url, proxies=self.proxies, data=json_data)
+        self.es.indices.create(index=self.index, body=data)
 
     def load_fixtures(self):
         """
@@ -146,18 +142,10 @@ class ElasticSearchQueryTestCase(ExtendedTestCase):
             body: json with fields of values of document
         """
         for doc in self.fixtures:
-            doc_type = urllib.quote_plus(doc["type"])
-            doc_id = urllib.quote_plus(doc["id"])
-            doc_body = doc["body"]
-            url = "{0}{1}/{2}/{3}"
-            url = url.format(self.host, self.index, doc_type, doc_id)
-            response = requests.put(
-                url,
-                data=json.dumps(doc_body),
-                proxies=self.proxies)
-            if not response.status_code in [200, 201]:
-                raise ElasticSearchException(response.text)
-        time.sleep(self.timeout)
+            self.es.index(
+                index=self.index, doc_type=doc["type"],
+                id=doc["id"], body=doc["body"], refresh=True
+            )
         # http://0.0.0.0:9200/sample.test/_search
 
     def delete_index(self):
@@ -165,33 +153,22 @@ class ElasticSearchQueryTestCase(ExtendedTestCase):
         Deletes test index. Uses class attribute:
             index: name of the index to be deleted
         """
-        url = "{0}{1}/".format(self.host, self.index)
-        requests.delete(url, proxies=self.proxies)
+        self.es.indices.delete(index=self.index, ignore=404)
 
     def search(self, query=None):
         """
         Run a search <query> (JSON) and returns the JSON response.
         """
-        url = "{0}{1}/_search".format(self.host, self.index)
         query = {} if query is None else query
-        response = requests.post(
-            url,
-            data=json.dumps(query),
-            proxies=self.proxies)
-        return json.loads(response.text)
+        response = self.es.search(index=self.index, body=query)
+        return response
 
     def tokenize(self, text, analyzer):
         """
         Run <analyzer> on text and returns a dict containing the tokens.
         """
-        url = "{0}{1}/_analyze".format(self.host, self.index)
-        if analyzer != "default":
-            url += "?analyzer={0}".format(analyzer)
-        response = requests.post(
-            url,
-            data=json.dumps(text),
-            proxies=self.proxies)
-        return json.loads(response.text)
+        response = self.es.indices.analyze(index=self.index, body=text, analyzer=analyzer)
+        return response
 
 
 class MultipleIndexesQueryTestCase(ElasticSearchQueryTestCase):
@@ -266,16 +243,13 @@ class MultipleIndexesQueryTestCase(ElasticSearchQueryTestCase):
         (i) http://www.elasticsearch.org/guide/en/elasticsearch/guide/current/
         configuring-analyzers.html
         """
-        url = "{0}{1}/"
-        index = index_name or self.index
-        url = url.format(self.host, index)
+
         data = {}
         if self.mappings:
             data["mappings"] = mappings or self.mappings
         if self.settings:
             data["settings"] = settings or self.settings
-        json_data = json.dumps(data)
-        response = requests.put(url, proxies=self.proxies, data=json_data)
+        self.es.indices.create(index=self.index, body=data)
 
     def load_fixtures(self, index_name="", fixtures=""):
         """
@@ -308,18 +282,10 @@ class MultipleIndexesQueryTestCase(ElasticSearchQueryTestCase):
         index = index_name or self.index
         fixtures = fixtures or self.fixtures
         for doc in fixtures:
-            doc_type = urllib.quote_plus(doc["type"])
-            doc_id = urllib.quote_plus(doc["id"])
-            doc_body = doc["body"]
-            url = "{0}{1}/{2}/{3}"
-            url = url.format(self.host, index, doc_type, doc_id)
-            response = requests.put(
-                url,
-                data=json.dumps(doc_body),
-                proxies=self.proxies)
-            if not response.status_code in [200, 201]:
-                raise ElasticSearchException(response.text)
-        time.sleep(self.timeout)
+            self.es.index(
+                index=index, doc_type=doc["type"],
+                id=doc["id"], body=doc["body"], refresh=True
+            )
         # http://0.0.0.0:9200/sample.test/_search
 
     def delete_index(self, index_name=""):
@@ -327,30 +293,20 @@ class MultipleIndexesQueryTestCase(ElasticSearchQueryTestCase):
         Deletes test index. Uses class attribute:
             index: name of the index to be deleted
         """
-        index = index_name or self.index
-        url = "{0}{1}/".format(self.host, self.index)
-        requests.delete(url, proxies=self.proxies)
+        self.es.indices.delete(index=self.index, ignore=404)
 
     def search(self, query=None):
         """
         Run a search <query> (JSON) and returns the JSON response.
         """
-        url = "{0}/_search".format(self.host)
         query = {} if query is None else query
-        response = requests.post(
-            url,
-            data=json.dumps(query),
-            proxies=self.proxies)
-        return json.loads(response.text)
+        response = self.es.search(body=query)
+        return response
 
     def search_in_index(self, index, query=None):
         """
         Run a search <query> (JSON) and returns the JSON response.
         """
-        url = "{0}/{1}/_search".format(self.host, index)
         query = {} if query is None else query
-        response = requests.post(
-            url,
-            data=json.dumps(query),
-            proxies=self.proxies)
-        return json.loads(response.text)
+        response = self.es.search(index=index, body=query)
+        return response
