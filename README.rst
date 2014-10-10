@@ -73,7 +73,8 @@ Basic example, only re-defining fixtures: ::
 ESTester tests
 --------------
 
-In order to run ESTester tests, make sure you have ElasticSearch installed locally and it is up
+In order to run ESTester tests, make sure you have ElasticSearch installed locally and it is up ::
+    
     make setup
     make tests
 
